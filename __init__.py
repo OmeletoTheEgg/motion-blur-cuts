@@ -1,5 +1,5 @@
 import bpy
-from mathutils import Vector
+import math
 
 bl_info = {
     "name": "My Camera Info Addon",
@@ -13,34 +13,51 @@ bl_info = {
     "category": "Object"
 }
 
-def execute(self, context):
-    scene = context.scene
-    cam = scene.camera
-    prev_pos = None
-    prev_diff = None
-    consecutive_cut = False
-    for frame in range(scene.frame_start, scene.frame_end + 1):
-        scene.frame_set(frame)
-        pos = cam.matrix_world.to_translation()
-        if prev_pos is not None:
-            diff = (pos - prev_pos).length
-            if prev_diff is not None:
-                if diff > prev_diff * self.tolerance or diff < prev_diff / self.tolerance:
-                    self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff}')
-                    if not consecutive_cut:
-                        consecutive_cut = True
-                        self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff} Cut')
-                        context.scene.cycles.motion_blur_position = "START"
-                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, type='EXTREME')
-                        context.scene.cycles.motion_blur_position = "END"
-                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1)
-                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1)
-                else:
-                    consecutive_cut = False
-                    self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff}')
-            prev_diff = diff
-        prev_pos = pos
-    return {'FINISHED'}
+class GenerateKeyframeOperator(bpy.types.Operator):
+    """Generate Keyframe on Cuts"""
+    bl_idname = "object.generate_keyframe"
+    bl_label = "Generate Keyframe on Cuts"
+
+    tolerance = bpy.props.FloatProperty(name="Tolerance", default=0.1)
+
+    def execute(self, context):
+        scene = context.scene
+        cam = scene.camera
+        prev_pos = None
+        prev_diff = None
+        prev_yaw = None
+        prev_pitch = None
+        consecutive_cut = False
+        for frame in range(scene.frame_start, scene.frame_end + 1):
+            scene.frame_set(frame)
+            pos = cam.matrix_world.to_translation()
+            if prev_pos is not None:
+                diff = (pos - prev_pos).length
+                if prev_diff is not None:
+                    magnitude_change = diff > prev_diff + prev_diff * self.tolerance or diff < prev_diff - prev_diff * self.tolerance
+                    direction = pos - prev_pos
+                    yaw = math.atan2(direction.y, direction.x)
+                    pitch = math.asin(direction.z / direction.length)
+                    if prev_yaw is not None and prev_pitch is not None:
+                        yaw_change = abs(yaw - prev_yaw) * self.tolerance > 1
+                        pitch_change = abs(pitch - prev_pitch) * self.tolerance > 1
+                        if magnitude_change and (yaw_change or pitch_change):
+                            self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Magnitude Difference: {diff} Yaw: {yaw} Pitch: {pitch} Cut')
+                            if not consecutive_cut:
+                                consecutive_cut = True
+                                context.scene.cycles.motion_blur_position = "START"
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, keyframe_type='CONSTANT')
+                                context.scene.cycles.motion_blur_position = "END"
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1, keyframe_type='CONSTANT')
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1, keyframe_type='CONSTANT')
+                        else:
+                            consecutive_cut = False
+                    prev_yaw = yaw
+                    prev_pitch = pitch
+                prev_diff = diff
+            prev_pos = pos
+            
+        return {'FINISHED'}
 
 
 class MyCameraPanel(bpy.types.Panel):
