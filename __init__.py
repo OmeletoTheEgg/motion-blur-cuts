@@ -18,7 +18,7 @@ class GenerateKeyframeOperator(bpy.types.Operator):
     bl_idname = "object.generate_keyframe"
     bl_label = "Generate Keyframe on Cuts"
 
-    tolerance = bpy.props.FloatProperty(name="Tolerance", default=0.1)
+    tolerance : bpy.props.FloatProperty(name="Tolerance", default=1.1)
 
     def execute(self, context):
         scene = context.scene
@@ -34,7 +34,7 @@ class GenerateKeyframeOperator(bpy.types.Operator):
             if prev_pos is not None:
                 diff = (pos - prev_pos).length
                 if prev_diff is not None:
-                    magnitude_change = diff > prev_diff + prev_diff * self.tolerance or diff < prev_diff - prev_diff * self.tolerance
+                    magnitude_change = diff > (prev_diff + (prev_diff * self.tolerance)) or diff < (prev_diff - (prev_diff * self.tolerance))
                     direction = pos - prev_pos
                     yaw = math.atan2(direction.y, direction.x)
                     pitch = math.asin(direction.z / direction.length)
@@ -46,10 +46,10 @@ class GenerateKeyframeOperator(bpy.types.Operator):
                             if not consecutive_cut:
                                 consecutive_cut = True
                                 context.scene.cycles.motion_blur_position = "START"
-                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, keyframe_type='CONSTANT')
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, type="EXTREME")
                                 context.scene.cycles.motion_blur_position = "END"
-                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1, keyframe_type='CONSTANT')
-                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1, keyframe_type='CONSTANT')
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1)
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1)
                         else:
                             consecutive_cut = False
                     prev_yaw = yaw
