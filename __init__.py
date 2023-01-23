@@ -20,7 +20,7 @@ class GenerateKeyframeOperator(bpy.types.Operator):
     bl_label = "Generate Keyframe on Cuts"
 
     tolerance_magnitude : bpy.props.FloatProperty(name="Magnitude Tolerance", default=1.0)
-    tolerance_angle : bpy.props.FloatProperty(name="Angle Tolerance", default= math.pi/4)
+    tolerance_angle : bpy.props.FloatProperty(name="Angle Tolerance", default= math.pi * 3/4)
 
     def execute(self, context):
         scene = context.scene
