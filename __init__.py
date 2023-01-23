@@ -1,4 +1,5 @@
 import bpy
+from mathutils import Vector
 
 bl_info = {
     "name": "My Camera Info Addon",
@@ -12,18 +13,35 @@ bl_info = {
     "category": "Object"
 }
 
-class GenerateKeyframeOperator(bpy.types.Operator):
-    """Generate Keyframe on Cuts"""
-    bl_idname = "object.generate_keyframe"
-    bl_label = "Generate Keyframe on Cuts"
-    bl_options = {'REGISTER', 'UNDO'}
-
-    def execute(self, context):
-        cam = context.scene.camera
+def execute(self, context):
+    scene = context.scene
+    cam = scene.camera
+    prev_pos = None
+    prev_diff = None
+    consecutive_cut = False
+    for frame in range(scene.frame_start, scene.frame_end + 1):
+        scene.frame_set(frame)
         pos = cam.matrix_world.to_translation()
-        rot = cam.matrix_world.to_euler()
-        self.report({'INFO'}, f'Camera Position: {pos} Rotation: {rot}')
-        return {'FINISHED'}
+        if prev_pos is not None:
+            diff = (pos - prev_pos).length
+            if prev_diff is not None:
+                if diff > prev_diff * self.tolerance or diff < prev_diff / self.tolerance:
+                    self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff}')
+                    if not consecutive_cut:
+                        consecutive_cut = True
+                        self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff} Cut')
+                        context.scene.cycles.motion_blur_position = "START"
+                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, type='EXTREME')
+                        context.scene.cycles.motion_blur_position = "END"
+                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1)
+                        scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1)
+                else:
+                    consecutive_cut = False
+                    self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Difference: {diff}')
+            prev_diff = diff
+        prev_pos = pos
+    return {'FINISHED'}
+
 
 class MyCameraPanel(bpy.types.Panel):
     """Creates a Panel in the Camera properties window"""
