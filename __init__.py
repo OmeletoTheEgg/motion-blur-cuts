@@ -18,7 +18,8 @@ class GenerateKeyframeOperator(bpy.types.Operator):
     bl_idname = "object.generate_keyframe"
     bl_label = "Generate Keyframe on Cuts"
 
-    tolerance : bpy.props.FloatProperty(name="Tolerance", default=1.1)
+    tolerance_magnitude : bpy.props.FloatProperty(name="Magnitude Tolerance", default=0.1)
+    tolerance_angle : bpy.props.FloatProperty(name="Angle Tolerance", default=1/8*math.pi)
 
     def execute(self, context):
         scene = context.scene
@@ -27,38 +28,33 @@ class GenerateKeyframeOperator(bpy.types.Operator):
         prev_diff = None
         prev_yaw = None
         prev_pitch = None
+        prev_direction = None
         consecutive_cut = False
         for frame in range(scene.frame_start, scene.frame_end + 1):
             scene.frame_set(frame)
             pos = cam.matrix_world.to_translation()
             if prev_pos is not None:
                 diff = (pos - prev_pos).length
+                direction = pos - prev_pos
                 if prev_diff is not None:
-                    magnitude_change = diff > (prev_diff + (prev_diff * self.tolerance)) or diff < (prev_diff - (prev_diff * self.tolerance))
-                    direction = pos - prev_pos
-                    yaw = math.atan2(direction.y, direction.x)
-                    pitch = math.asin(direction.z / direction.length)
-                    if prev_yaw is not None and prev_pitch is not None:
-                        yaw_change = abs(yaw - prev_yaw) * self.tolerance > 1
-                        pitch_change = abs(pitch - prev_pitch) * self.tolerance > 1
-                        if magnitude_change and (yaw_change or pitch_change):
-                            self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Magnitude Difference: {diff} Yaw: {yaw} Pitch: {pitch} Cut')
+                    magnitude_change = diff > (prev_diff + (prev_diff * self.tolerance_magnitude)) or diff < (prev_diff - (prev_diff * self.tolerance_magnitude))
+                    if prev_direction is not None:
+                        angle_change = math.acos(direction.dot(prev_direction) / (direction.length * prev_direction.length)) > self.tolerance_angle
+                        if magnitude_change and angle_change:
+                            self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Magnitude Difference: {diff} Angle Change: {angle_change} Cut')
                             if not consecutive_cut:
                                 consecutive_cut = True
                                 context.scene.cycles.motion_blur_position = "START"
-                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame, type="EXTREME")
+                                scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame)
                                 context.scene.cycles.motion_blur_position = "END"
                                 scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame-1)
                                 scene.keyframe_insert(data_path="cycles.motion_blur_position", frame=frame+1)
                         else:
                             consecutive_cut = False
-                    prev_yaw = yaw
-                    prev_pitch = pitch
+                    prev_direction = direction
                 prev_diff = diff
             prev_pos = pos
-            
         return {'FINISHED'}
-
 
 class MyCameraPanel(bpy.types.Panel):
     """Creates a Panel in the Camera properties window"""
@@ -83,3 +79,4 @@ def unregister():
 
 if __name__ == "__main__":
     register()
+    unregister()
