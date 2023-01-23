@@ -1,11 +1,12 @@
 import bpy
+from mathutils import Vector
 import math
 
 bl_info = {
     "name": "My Camera Info Addon",
     "author": "Your Name",
     "version": (1, 0, 0),
-    "blender": (2, 80, 0),
+    "blender": (3, 4, 0),
     "location": "View3D",
     "description": "Displays the position and rotation of the camera in the scene",
     "warning": "",
@@ -18,16 +19,14 @@ class GenerateKeyframeOperator(bpy.types.Operator):
     bl_idname = "object.generate_keyframe"
     bl_label = "Generate Keyframe on Cuts"
 
-    tolerance_magnitude : bpy.props.FloatProperty(name="Magnitude Tolerance", default=0.1)
-    tolerance_angle : bpy.props.FloatProperty(name="Angle Tolerance", default=1/8*math.pi)
+    tolerance_magnitude : bpy.props.FloatProperty(name="Magnitude Tolerance", default=1.0)
+    tolerance_angle : bpy.props.FloatProperty(name="Angle Tolerance", default= math.pi/4)
 
     def execute(self, context):
         scene = context.scene
         cam = scene.camera
         prev_pos = None
         prev_diff = None
-        prev_yaw = None
-        prev_pitch = None
         prev_direction = None
         consecutive_cut = False
         for frame in range(scene.frame_start, scene.frame_end + 1):
@@ -39,7 +38,7 @@ class GenerateKeyframeOperator(bpy.types.Operator):
                 if prev_diff is not None:
                     magnitude_change = diff > (prev_diff + (prev_diff * self.tolerance_magnitude)) or diff < (prev_diff - (prev_diff * self.tolerance_magnitude))
                     if prev_direction is not None:
-                        angle_change = math.acos(direction.dot(prev_direction) / (direction.length * prev_direction.length)) > self.tolerance_angle
+                        angle_change = direction.dot(prev_direction) < self.tolerance_angle
                         if magnitude_change and angle_change:
                             self.report({'INFO'}, f'Frame: {frame} Camera Position: {pos} Magnitude Difference: {diff} Angle Change: {angle_change} Cut')
                             if not consecutive_cut:
@@ -55,6 +54,7 @@ class GenerateKeyframeOperator(bpy.types.Operator):
                 prev_diff = diff
             prev_pos = pos
         return {'FINISHED'}
+
 
 class MyCameraPanel(bpy.types.Panel):
     """Creates a Panel in the Camera properties window"""
@@ -79,4 +79,3 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-    unregister()
